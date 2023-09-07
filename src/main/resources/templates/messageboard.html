@@ -1,0 +1,173 @@
+
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>留言板</title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.18.3/bootstrap-table.min.css">
+</head>
+<body>
+
+<div class="container mt-3">
+    <h2 class="text-center mb-4">留言板</h2>
+
+    <div class="mb-4">
+        <form id="messageForm">
+            <div class="form-group">
+                <label for="name">姓名:</label>
+                <input type="text" class="form-control" id="name" placeholder="輸入您的名字">
+            </div>
+            <div class="form-group">
+                <label for="message">留言:</label>
+                <textarea class="form-control" id="message" rows="3" placeholder="輸入您的留言"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">提交</button>
+        </form>
+    </div>
+
+    <div class="mt-4">
+        <h4 class="mb-3">留言:</h4>
+        <!-- Bootstrap Table Structure -->
+        <table id="messageTable"
+               data-toggle="table"
+               data-search="true"
+               data-pagination="true">
+            <thead>
+            <tr>
+                <th data-field="name">姓名</th>
+                <th data-field="content">留言</th>
+                <th data-field="action">操作</th>
+            </tr>
+            </thead>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="editModal" tabindex="-1" role="dialog" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editModalLabel">編輯留言</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="editForm">
+                    <div class="form-group">
+                        <label for="editName">姓名:</label>
+                        <input type="text" class="form-control" id="editName" placeholder="輸入您的名字">
+                    </div>
+                    <div class="form-group">
+                        <label for="editMessage">留言:</label>
+                        <textarea class="form-control" id="editMessage" rows="3" placeholder="輸入您的留言"></textarea>
+                        <input type="hidden" id="editId">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">關閉</button>
+                <button type="button" class="btn btn-primary" id="saveEdit">儲存修改</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.18.3/bootstrap-table.min.js"></script>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.18.3/bootstrap-table.min.js"></script>
+
+
+<script>
+    const messageList = document.getElementById('messageList');
+    const messageForm = document.getElementById('messageForm');
+    const editForm = document.getElementById('editForm');
+    const editId = document.getElementById('editId');
+    const editMessage = document.getElementById('editMessage');
+
+    function fetchMessages() {
+        fetch('/api/messages')
+            .then(response => response.json())
+            .then(messages => {
+                $('#messageTable').bootstrapTable('load', messages.map(message => {
+                    return {
+                        name: message.name,
+                        content: message.content,
+                        action: `
+                            <button class="btn btn-warning btn-sm" onclick="showEdit(${message.id},'${message.name}','${message.content}')">編輯</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteMessage(${message.id})">刪除</button>
+                        `
+                    };
+                }));
+            });
+    }
+
+    messageForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        const name = document.getElementById('name').value;
+        const content = document.getElementById('message').value;
+
+        fetch('/api/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({name: name, content: content})
+        })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('name').value = '';
+                document.getElementById('message').value = '';
+                fetchMessages();
+            });
+    });
+
+    function showEdit(id, name, content) {
+        editId.value = id;
+        document.getElementById('editName').value = name;
+        editMessage.value = content;
+        $('#editModal').modal('show');
+    }
+
+    document.getElementById('saveEdit').addEventListener('click', function () {
+        const updatedName = document.getElementById('editName').value;
+        fetch(`/api/messages/${editId.value}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({name: updatedName, content: editMessage.value})
+        })
+            .then(response => response.json())
+            .then(data => {
+                $('#editModal').modal('hide');
+                fetchMessages();
+            });
+    });
+
+    function deleteMessage(id) {
+        fetch(`/api/messages/${id}`, {
+            method: 'DELETE'
+        })
+            .then(response => {
+                if (response.ok) {
+                    fetchMessages();
+                }
+            });
+    }
+
+    fetchMessages();
+
+
+</script>
+
+</body>
+</html>
